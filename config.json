@@ -1,0 +1,25 @@
+
+{   
+    "capital": {
+        "total_capital": 50000,
+        "per_trade": 5000
+    },
+    "rsi": {
+        "period": 14,              
+        "oversold": 30,            
+        "overbought": 70           
+    },
+    "ema": {
+        "span": 20                  
+    },
+    "macd": {
+        "fast": 12,                 
+        "slow": 26,                 
+        "signal": 9                 
+    },
+    "dmi": {
+        "period": 14               
+    },
+    "stop_loss_percent": 0.02,   
+    "min_adx_strength": 20       
+}
