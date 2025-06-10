@@ -1,0 +1,2 @@
+--- INCOMPLETE TRADES ---
+{'entry_time': Timestamp('2022-02-15 14:10:00+0530', tz='UTC+05:30'), 'direction': 'short', 'entry_price': np.float64(17286.5), 'position_size': np.float64(0.2892), 'capital_left': np.float64(46389.03), 'rsi': np.float64(81.08), 'macd': np.float64(62.6471), 'signal_line': np.float64(49.0125), '+DI': np.float64(35.4), '-DI': np.float64(27.12), 'adx': np.float64(16.07), 'divergence': 'bearish', 'entry_reason': 'RSI > overbought, Bearish Divergence', 'entry_sl': np.float64(17632.23)}

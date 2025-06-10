@@ -1,3 +1,5 @@
+import pandas as pd
+
 class TradeState:
     def __init__(self, total_capital=50000, capital_per_trade=5000):
         """
@@ -27,6 +29,7 @@ class TradeState:
         self.capital_per_trade = capital_per_trade
 
         self.trades = []  # unified trade record list
+        self.sl_trail = []  # optional: SL trail log
 
     def reset(self):
         """
@@ -37,6 +40,7 @@ class TradeState:
         self.stop_loss = None
         self.position_size = 0
         self.entry_time = None
+        self.sl_trail = []
 
 
 def update_stop_loss(current_price, state, sl_percent=0.02):
@@ -67,6 +71,13 @@ def update_stop_loss(current_price, state, sl_percent=0.02):
         if new_sl < state.stop_loss:
             state.stop_loss = new_sl
 
+    # Log SL trail if needed
+    if state.active_trade:
+        state.sl_trail.append({
+            "timestamp": pd.to_datetime("now"),
+            "stop_loss": state.stop_loss
+        })
+
     return state.stop_loss
 
 
@@ -93,7 +104,7 @@ def execute_entry(row, signal, state, config):
     Executes entry logic: assigns trade state, updates capital, computes qty.
 
     Parameters:
-        row (pd.Series): Candle row with 'timestamp' and 'close'
+        row (pd.Series): Candle row with indicator values
         signal (str): 'buy' or 'short'
         state (TradeState): Current trade state
         config (dict): Contains stop_loss_percent
@@ -118,7 +129,50 @@ def execute_entry(row, signal, state, config):
     # Deduct capital
     state.available_capital -= state.capital_per_trade
 
-    print(f"[{timestamp}] ✅ ENTER {signal.upper()} @ ₹{price:.2f} | Qty: {state.position_size}")
+    # Capture indicator context
+    rsi = round(row['rsi'], 2)
+    macd = round(row['macd'], 4)
+    signal_line = round(row['signal'], 4)
+    plus_di = round(row['+DI'], 2)
+    minus_di = round(row['-DI'], 2)
+    adx = round(row['ADX'], 2)
+    divergence = row['divergence']
+
+    reason = []
+    if signal == 'buy':
+        if rsi < config["rsi"]["oversold"]: reason.append("RSI < oversold")
+        if macd > signal_line: reason.append("MACD > Signal")
+        if plus_di > minus_di: reason.append("+DI > -DI")
+        if adx > config["min_adx_strength"]: reason.append("ADX strong")
+        if divergence == "bullish": reason.append("Bullish Divergence")
+    elif signal == 'short':
+        if rsi > config["rsi"]["overbought"]: reason.append("RSI > overbought")
+        if macd < signal_line: reason.append("MACD < Signal")
+        if minus_di > plus_di: reason.append("-DI > +DI")
+        if adx > config["min_adx_strength"]: reason.append("ADX strong")
+        if divergence == "bearish": reason.append("Bearish Divergence")
+
+    reason_str = ", ".join(reason)
+
+    # Log enriched trade entry info
+    state.trades.append({
+        "entry_time": timestamp,
+        "direction": signal,
+        "entry_price": round(price, 2),
+        "position_size": state.position_size,
+        "capital_left": round(state.available_capital, 2),
+        "rsi": rsi,
+        "macd": macd,
+        "signal_line": signal_line,
+        "+DI": plus_di,
+        "-DI": minus_di,
+        "adx": adx,
+        "divergence": divergence,
+        "entry_reason": reason_str,
+        "entry_sl": round(state.stop_loss, 2)
+    })
+
+    print(f"[{timestamp}] ✅ ENTER {signal.upper()} @ ₹{price:.2f} | Qty: {state.position_size} | Reason: {reason_str}")
 
 
 def execute_exit(row, state):
@@ -131,7 +185,7 @@ def execute_exit(row, state):
 
     Modifies:
         - Updates available capital
-        - Appends to state.trades
+        - Updates last trade in state.trades with exit data
         - Resets state
     """
     exit_price = row['close']
@@ -148,14 +202,10 @@ def execute_exit(row, state):
     # Restore capital
     state.available_capital += (state.capital_per_trade + profit)
 
-    # Log full trade record
-    state.trades.append({
-        "entry_time": entry_time,
+    # Add exit data to the last trade
+    state.trades[-1].update({
         "exit_time": timestamp,
-        "direction": direction,
-        "entry_price": round(entry_price, 2),
         "exit_price": round(exit_price, 2),
-        "position_size": qty,
         "profit": round(profit, 2),
         "return_pct": round(return_pct, 2),
         "capital_left": round(state.available_capital, 2)
